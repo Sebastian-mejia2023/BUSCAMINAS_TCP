@@ -3,6 +3,12 @@ plugins {
     id 'application'
 }
 
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
 repositories {
     mavenCentral()
 }
@@ -12,7 +18,7 @@ dependencies {
 }
 
 application {
-    mainClass = 'co.icesi.buscaminas.client.MainClient'
+    mainClass = 'co.icesi.buscaminas.Main'
 }
 
 run {
