@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import co.icesi.buscaminas.model.BoardGame;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonParseException;
@@ -157,18 +158,25 @@ public class TCPController {
                         int i = parseInt(data, "i");
                         int j = parseInt(data, "j");
                         try {
-                            boolean win = services.selectCell(i, j);
-                            response.data.put("win", win);
-                            response.data.put("gameEnd", win);
-                            response.data.put("message", win ? "Victoria: todas las casillas seguras destapadas"
-                                    : "Celda destapada");
+                            boolean alive = services.selectCell(i, j);
+                            boolean isWon = (services.getGame().getState() == BoardGame.GameState.WON);
+                            boolean isLost = (services.getGame().getState() == BoardGame.GameState.LOST);
+
+                            response.data.put("win", isWon);
+                            response.data.put("gameEnd", isWon || isLost);
+
+                            if (isWon) {
+                                response.data.put("message", "Victoria: todas las casillas seguras destapadas");
+                            } else if (isLost) {
+                                response.data.put("message", "BOOM: pisaste una mina");
+                            } else {
+                                response.data.put("message", "Celda destapada");
+                            }
                         } catch (GameOverException e) {
-                            // Pisar una mina es un resultado valido del juego, no un error de protocolo.
                             response.data.put("win", false);
                             response.data.put("gameEnd", true);
                             response.data.put("message", "BOOM: pisaste una mina");
                         }
-                        // Coordenadas invalidas -> IllegalArgumentException -> se responde ERROR (mas abajo).
                         response.status = "OK";
                         response.data.put("board", services.printBoard());
                         break;
