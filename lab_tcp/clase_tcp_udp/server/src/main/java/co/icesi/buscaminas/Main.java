@@ -8,14 +8,30 @@ import co.icesi.buscaminas.services.ServicesImpl;
 
 public class Main {
 
+    /** Uso: Main [puerto] [--console]   (puerto por defecto: 12345) */
     public static void main(String[] args)
     {
-        ServicesImpl serv = new ServicesImpl();
-        new Thread(() -> apply(serv.getGame())).start();
-        // TCPController controller = new TCPController(serv);
-        // controller.startService();
+        int port = 12345;
+        if (args.length > 0) {
+            try {
+                port = Integer.parseInt(args[0]);
+                if (port < 1 || port > 65535) {
+                    throw new NumberFormatException();
+                }
+            } catch (NumberFormatException e) {
+                System.err.println("Puerto invalido: " + args[0] + ". Uso: Main [puerto] [--console]");
+                System.exit(1);
+            }
+        }
 
-        TCPController iceController = new TCPController(serv);
+        ServicesImpl serv = new ServicesImpl();
+        // La consola local es opcional: es un "cliente" extra que muta el mismo tablero compartido
+        // y, con 'gradlew run', no tiene stdin disponible.
+        if (args.length > 1 && args[1].equals("--console")) {
+            new Thread(() -> apply(serv.getGame())).start();
+        }
+
+        TCPController iceController = new TCPController(serv, port);
         iceController.startService();
     }
     public static void apply(BoardGame bg) {
