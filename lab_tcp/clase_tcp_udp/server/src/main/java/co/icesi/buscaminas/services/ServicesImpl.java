@@ -16,14 +16,19 @@ public class ServicesImpl{
     public int initGame(int n, int m, int mines) {
         return game.initGame(n, m, mines);
     }
-    
+
     public boolean selectCell(int i, int j) {
-        
+
         return game.selectCell(i, j);
     }
 
+    public Cell[][] markCell(int i, int j) {
+        game.markCell(i, j);
+        return game.getBoard();
+    }
+
     public void showAll(boolean show) {
-        
+
         game.showAll(show);
     }
 
@@ -33,5 +38,5 @@ public class ServicesImpl{
 
         return cells;
     }
-    
+
 }

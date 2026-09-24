@@ -1,69 +1,99 @@
 package co.icesi.buscaminas.model;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.Random;
 
+/**
+ * Modelo del juego. Hay UNA sola instancia compartida por todos los hilos del ThreadPool,
+ * asi que todo metodo que lee o modifica el tablero es synchronized (monitor = this).
+ */
 public class BoardGame {
+
+    public static final int MAX_DIMENSION = 100;
 
     private Cell[][] board;
 
     private int mines;
 
-    public int getMines() {
+    public synchronized int getMines() {
         return mines;
     }
 
-    public int initGame(int n, int m, int mines){
-        this.mines = mines;
-        board = new Cell[n][m];
-        Random rd = new Random();
-        int mi = 0;
-        for (int i = 0; i <n; i++) {
+    public synchronized int initGame(int n, int m, int mines){
+        if (n < 1 || m < 1 || n > MAX_DIMENSION || m > MAX_DIMENSION) {
+            throw new IllegalArgumentException("Dimensiones invalidas: n y m deben estar entre 1 y " + MAX_DIMENSION);
+        }
+        if (mines < 1 || mines >= n * m) {
+            throw new IllegalArgumentException("Numero de minas invalido: debe estar entre 1 y " + (n * m - 1));
+        }
+        // Se construye en una variable local y solo al final se publica: nunca queda un tablero a medias.
+        Cell[][] newBoard = new Cell[n][m];
+        for (int i = 0; i < n; i++) {
             for (int j = 0; j < m; j++) {
-                boolean isMine = false;
-                board[i][j] = new Cell(isMine,0);
+                newBoard[i][j] = new Cell(false, 0);
             }
         }
-        for (int i = 0; i < mines; i++) {
-            int k =rd.nextInt(n);
-            int l = rd.nextInt(m);
-            Cell cell = board[k][l];
-            mi += cell.isLandMine()?0:1;
-            cell.setLandMine(true);
+        Random rd = new Random();
+        int placed = 0;
+        while (placed < mines) {          // minas distintas: siempre quedan exactamente 'mines'
+            Cell cell = newBoard[rd.nextInt(n)][rd.nextInt(m)];
+            if (!cell.isLandMine()) {
+                cell.setLandMine(true);
+                placed++;
+            }
         }
-        for (int i = 0; i <n; i++) {
+        for (int i = 0; i < n; i++) {
             for (int j = 0; j < m; j++) {
-                boolean isMine = board[i][j].isLandMine();
-                if(!isMine){
-                    int minesAround = getMinesAround(i,j);
-                    board[i][j].setValue(minesAround);
+                if (!newBoard[i][j].isLandMine()) {
+                    newBoard[i][j].setValue(countMinesAround(newBoard, i, j));
                 }
             }
         }
-        return mi;
+        this.board = newBoard;
+        this.mines = mines;
+        return placed;
     }
 
-    public void showAll(boolean show){
-        for (int i = 0; i <board.length; i++) {
+    public synchronized void showAll(boolean show){
+        requireBoard();
+        for (int i = 0; i < board.length; i++) {
             for (int j = 0; j < board[0].length; j++) {
                 board[i][j].setShowAll(show);
             }
         }
     }
 
-    private int getMinesAround(int i, int j) {
-        int mines = 0;
-        mines += i > 0 && board[i-1][j].isLandMine()?1:0;
-        mines += i < board.length-1 && board[i+1][j].isLandMine()?1:0;
-        mines += j > 0 && board[i][j-1].isLandMine()?1:0;
-        mines += j < board[0].length-1 && board[i][j+1].isLandMine()?1:0;
-        mines += i > 0 && j > 0 && board[i-1][j-1].isLandMine()?1:0;
-        mines += i > 0 && j < board[0].length-1 && board[i-1][j+1].isLandMine()?1:0;
-        mines += i < board.length-1 && j > 0 && board[i+1][j-1].isLandMine()?1:0;
-        mines += i < board.length-1 && j < board[0].length-1 && board[i+1][j+1].isLandMine()?1:0;
-        return mines;
+    private static boolean inBounds(Cell[][] b, int i, int j) {
+        return i >= 0 && i < b.length && j >= 0 && j < b[0].length;
     }
 
-    public void printBoard(){
+    private static int countMinesAround(Cell[][] b, int i, int j) {
+        int count = 0;
+        for (int di = -1; di <= 1; di++) {
+            for (int dj = -1; dj <= 1; dj++) {
+                if (di == 0 && dj == 0) continue;
+                int ni = i + di, nj = j + dj;
+                if (inBounds(b, ni, nj) && b[ni][nj].isLandMine()) count++;
+            }
+        }
+        return count;
+    }
+
+    private void requireBoard() {
+        if (board == null) {
+            throw new IllegalStateException("El juego no ha sido inicializado");
+        }
+    }
+
+    private void checkBounds(int i, int j) {
+        if (!inBounds(board, i, j)) {
+            throw new IllegalArgumentException("Cell no valid");
+        }
+    }
+
+    public synchronized void printBoard(){
+        requireBoard();
         System.out.println();
         System.out.print("   ");
         for (int i = 0; i < board[0].length; i++) {
@@ -78,62 +108,74 @@ public class BoardGame {
             System.out.println(" ]");
         }
     }
-    public boolean selectCell(int i, int j){
-        if(i<0 || i>= board.length || j<0 || j >= board[0].length ){
-            throw new RuntimeException("Cell no valid");
-        }
+
+    public synchronized boolean selectCell(int i, int j){
+        requireBoard();
+        checkBounds(i, j);
         Cell cell = board[i][j];
+        if (cell.isMarked()) {
+            return validWin();            // una casilla con bandera esta protegida: hay que desmarcarla primero
+        }
         if(cell.isLandMine()){
             showAll(true);
-            throw new RuntimeException("Game over");
-        }else {
-            if (cell.isHide()) {
-                showCells(i,j,true);
-            }
-            return validWin();
+            throw new GameOverException("Game over");
         }
+        if (cell.isHide()) {
+            showCells(i, j);
+        }
+        return validWin();
     }
 
     private boolean validWin(){
-        boolean win = true;
-        for (int i = 0; i <board.length; i++) {
+        for (int i = 0; i < board.length; i++) {
             for (int j = 0; j < board[0].length; j++) {
-                win &= !board[i][j].isHide() || board[i][j].isLandMine();
+                if (board[i][j].isHide() && !board[i][j].isLandMine()) {
+                    return false;
+                }
             }
         }
-        return win;
+        return true;
     }
 
-    private void showCells(int i, int j, boolean deep) {
-        if(i<0 || i>= board.length || j<0 || j >= board[0].length || !board[i][j].isHide()){
-            return;
-        }
-        if(deep && board[i][j].isHide()){
-            board[i][j].setHide(false);
-            deep = board[i][j].getValue() == 0;
-        }
-
-        if (board[i][j].getValue() == 0) {
-            showCells(i, j - 1, deep);
-            showCells(i, j + 1, deep);
-            showCells(i - 1, j, deep);
-            showCells(i + 1, j, deep);
-            showCells(i - 1, j - 1, deep);
-            showCells(i - 1, j + 1, deep);
-            showCells(i + 1, j - 1, deep);
-            showCells(i + 1, j + 1, deep);
+    /** Expansion iterativa (BFS): una recursion en tableros grandes podia causar StackOverflowError. */
+    private void showCells(int startI, int startJ) {
+        Deque<int[]> pending = new ArrayDeque<>();
+        pending.push(new int[]{startI, startJ});
+        while (!pending.isEmpty()) {
+            int[] pos = pending.pop();
+            int i = pos[0], j = pos[1];
+            if (!inBounds(board, i, j)) continue;
+            Cell cell = board[i][j];
+            if (!cell.isHide() || cell.isMarked() || cell.isLandMine()) continue;
+            cell.setHide(false);
+            if (cell.getValue() == 0) {
+                for (int di = -1; di <= 1; di++) {
+                    for (int dj = -1; dj <= 1; dj++) {
+                        if (di != 0 || dj != 0) pending.push(new int[]{i + di, j + dj});
+                    }
+                }
+            }
         }
     }
 
-    public Cell[][] getBoard() {
-        return board;
+    /** Devuelve una copia (foto) del tablero, para que otro hilo no lo mute mientras Gson lo serializa. */
+    public synchronized Cell[][] getBoard() {
+        requireBoard();
+        Cell[][] snapshot = new Cell[board.length][board[0].length];
+        for (int i = 0; i < board.length; i++) {
+            for (int j = 0; j < board[0].length; j++) {
+                snapshot[i][j] = board[i][j].copy();
+            }
+        }
+        return snapshot;
     }
 
-    public void markCell(int i, int j) {
-        if(i<0 || i>= board.length || j<0 || j >= board[0].length ){
-            throw new RuntimeException("Cell no valid");
-        }
+    public synchronized void markCell(int i, int j) {
+        requireBoard();
+        checkBounds(i, j);
         Cell cell = board[i][j];
-        cell.setMarked(!cell.isMarked());
+        if (cell.isHide()) {              // el contrato: solo se marca si la celda esta oculta
+            cell.setMarked(!cell.isMarked());
+        }
     }
 }

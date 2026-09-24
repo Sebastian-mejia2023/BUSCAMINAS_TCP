@@ -21,6 +21,15 @@ public class Cell implements Serializable{
         isMarked = false;
     }
 
+    /** Copia independiente de la celda (se usa para entregar "fotos" del tablero). */
+    public Cell copy() {
+        Cell c = new Cell(isLandMine, value);
+        c.hide = hide;
+        c.showAll = showAll;
+        c.isMarked = isMarked;
+        return c;
+    }
+
     public boolean isMarked() {
         return isMarked;
     }
