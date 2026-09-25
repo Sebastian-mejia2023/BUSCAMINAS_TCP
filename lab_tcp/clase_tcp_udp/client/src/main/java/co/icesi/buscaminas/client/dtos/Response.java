@@ -65,6 +65,7 @@ public class Response {
 
     private Cell mapCell(Map<?, ?> cellMap) {
         Cell cell = new Cell();
+
         Object mine = cellMap.get("isLandMine");
         if (mine instanceof Boolean value) cell.setMine(value);
 
@@ -73,6 +74,10 @@ public class Response {
 
         Object marked = cellMap.get("isMarked");
         if (marked instanceof Boolean value) cell.setFlagged(value);
+
+        // MAPEO DE SHOWALL (Línea clave agregada):
+        Object showAll = cellMap.get("showAll");
+        if (showAll instanceof Boolean value) cell.setShowAll(value);
 
         Object value = cellMap.get("value");
         if (value instanceof Number number) cell.setAdjacentMines(number.intValue());
