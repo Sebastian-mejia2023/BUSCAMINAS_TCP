@@ -53,9 +53,13 @@ public class BoardRenderer {
         if (cell.isFlagged()) {
             return "M";
         }
-        if (!cell.isRevealed()) {
+
+        // Si la casilla NO está revelada Y tampoco se solicitó mostrar todo (showAll), sigue oculta
+        if (!cell.isRevealed() && !cell.isShowAll()) {
             return ".";
         }
+
+        // Si llegó hasta aquí, la celda o está revelada o es fin de juego (showAll = true)
         if (cell.isMine()) {
             return "*";
         }
@@ -71,9 +75,12 @@ public class BoardRenderer {
         if (cell.isFlagged()) {
             return YELLOW + value + RESET;
         }
-        if (!cell.isRevealed()) {
+
+        // Si no está revelada y no es showAll, retorna el valor sin color especial
+        if (!cell.isRevealed() && !cell.isShowAll()) {
             return value;
         }
+
         if (cell.isMine()) {
             return RED + value + RESET;
         }

@@ -56,9 +56,14 @@ public class Main {
                 if(operation==2){
                     bg.markCell(i,j);
                 }else if(operation ==1){
-                    boolean r = bg.selectCell(i, j);
-                    if (r) {
+                    boolean alive = bg.selectCell(i, j);
+                    if (bg.getState() == BoardGame.GameState.WON) {
+                        bg.printBoard();
                         System.out.println("you win, Congratulations");
+                        break;
+                    } else if (bg.getState() == BoardGame.GameState.LOST) {
+                        bg.printBoard();
+                        System.out.println("BOOM: pisaste una mina");
                         break;
                     }
                 }
